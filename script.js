@@ -75,36 +75,54 @@
     { value: 0.5, label: "0,50 €" },
   ];
 
-  // Genera un pago realista: combinación de denominaciones (1-4 piezas),
-  // suma > total, cada pieza necesaria (quitar la menor deja suma <= total),
-  // y cambio no excesivo (<= max(2.5, total*0.18)).
+  // Genera la cartera aleatoria del cliente: 1-2 billetes grandes,
+  // 0-2 medianos, 1-3 monedas. Devuelve array de valores.
+  function genWallet() {
+    const wallet = [];
+    const LARGE = [50, 20];
+    const MED = [10, 5];
+    const SMALL = [2, 1, 0.5];
+    const nLarge = randInt(1, 2);
+    for (let i = 0; i < nLarge; i++) wallet.push(pick(LARGE));
+    const nMed = randInt(0, 2);
+    for (let i = 0; i < nMed; i++) wallet.push(pick(MED));
+    const nSmall = randInt(1, 3);
+    for (let i = 0; i < nSmall; i++) wallet.push(pick(SMALL));
+    return wallet.sort((a, b) => b - a);
+  }
+
+  // Genera un pago realista: el cliente saca un subconjunto de su cartera
+  // que cubra el total con cambio no excesivo, cada pieza necesaria.
   function genPayment(total) {
-    const combos = [];
-    const values = DENOMS.map((d) => d.value);
-    const MAX_PIECES = 4;
     const MAX_OVER = Math.max(2.5, total * 0.18);
+    const combos = [];
 
     function addIfValid(combo) {
       const sum = round2(combo.reduce((a, b) => a + b, 0));
       if (sum <= total) return;
       const over = round2(sum - total);
-      if (over > MAX_OVER) return; // cambio excesivo: descartar
+      if (over > MAX_OVER) return;
       const minV = Math.min.apply(null, combo);
-      if (round2(sum - minV) > total) return; // la pieza menor sobraría
+      if (round2(sum - minV) > total) return;
       combos.push(combo.slice().sort((a, b) => b - a));
     }
 
-    function build(start, combo, sum) {
-      if (sum > total) { addIfValid(combo); return; }
-      if (combo.length >= MAX_PIECES) return;
-      for (let i = start; i < values.length; i++) {
-        combo.push(values[i]);
-        build(i, combo, round2(sum + values[i]));
-        combo.pop();
+    // Probar varias carteras hasta encontrar al menos una opcion valida.
+    let wallet, attempts = 0;
+    do {
+      wallet = genWallet();
+      combos.length = 0;
+      const n = wallet.length;
+      const totalSubs = 1 << n;
+      for (let mask = 1; mask < totalSubs; mask++) {
+        const sub = [];
+        for (let i = 0; i < n; i++) {
+          if (mask & (1 << i)) sub.push(wallet[i]);
+        }
+        addIfValid(sub);
       }
-    }
-
-    build(0, [], 0);
+      attempts++;
+    } while (combos.length === 0 && attempts < 30);
 
     if (combos.length === 0) {
       let p = Math.ceil(total / 10) * 10;
@@ -112,18 +130,14 @@
       return { amount: p, bills: [p], labels: [p + " €"] };
     }
 
-    // Ponderar: cambio pequeño, pocas piezas, y algún billete grande.
     const weights = combos.map((c) => {
       const sum = round2(c.reduce((a, b) => a + b, 0));
       const over = round2(sum - total);
       const n = c.length;
       const hasLarge = c.some((x) => x >= 20);
       const has50 = c.some((x) => x >= 50);
-      // Penalizar cambio exponencialmente
       const wOver = Math.exp(-over * 0.4);
-      // Pocas piezas mejor
       const wPieces = n === 1 ? 3 : n === 2 ? 2.2 : n === 3 ? 0.7 : 0.2;
-      // Billetes grandes preferidos
       const wLarge = has50 ? 1.5 : hasLarge ? 1.3 : 1;
       return wOver * wPieces * wLarge;
     });
@@ -135,11 +149,14 @@
       if (r <= 0) {
         const bills = combos[i];
         const sum = round2(bills.reduce((a, b) => a + b, 0));
-        const labels = bills.map((v) => {
-          const d = DENOMS.find((x) => x.value === v);
-          return d ? d.label : v + " €";
-        });
-        return { amount: sum, bills, labels };
+        return {
+          amount: sum,
+          bills,
+          labels: bills.map((v) => {
+            const d = DENOMS.find((x) => x.value === v);
+            return d ? d.label : v + " €";
+          }),
+        };
       }
     }
     const c = combos[0];
