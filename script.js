@@ -68,40 +68,47 @@
   const BILLS = [5, 10, 20, 50];
 
   // Genera un pago como combinación de 1 a 3 billetes (suma > total).
-  // Prefiere combinaciones cercanas al total (poco cambio) ybilletes pequeños.
+  // Regla de sentido: el cambio nunca supera el billete mayor del combo
+  // (si lo superara, ese billete sobraría y no se usaría para pagar).
   function genPayment(total) {
     const combos = [];
 
+    const addIfValid = (combo) => {
+      const sum = combo.reduce((a, b) => a + b, 0);
+      if (sum <= total) return;
+      const change = round2(sum - total);
+      const maxBill = Math.max.apply(null, combo);
+      if (change >= maxBill) return; // cambio >= billete mayor => sin sentido
+      combos.push(combo);
+    };
+
     // 1 billete
-    BILLS.forEach((b) => { if (b > total) combos.push([b]); });
+    BILLS.forEach((b) => addIfValid([b]));
 
     // 2 billetes
     for (let i = 0; i < BILLS.length; i++) {
       for (let j = i; j < BILLS.length; j++) {
-        const s = BILLS[i] + BILLS[j];
-        if (s > total) combos.push([BILLS[i], BILLS[j]]);
+        addIfValid([BILLS[i], BILLS[j]]);
       }
     }
 
-    // 3 billetes (solo combinaciones comunes: 10+10+5, 20+10+5, 20+20+10 ...)
+    // 3 billetes (combinaciones comunes: 5+10+10, 10+10+20, 10+20+20 ...)
     for (let i = 0; i < BILLS.length; i++) {
       for (let j = i; j < BILLS.length; j++) {
         for (let k = j; k < BILLS.length; k++) {
-          const combo = [BILLS[i], BILLS[j], BILLS[k]];
-          const s = combo.reduce((a, b) => a + b, 0);
-          if (s > total && s <= total + 60) combos.push(combo);
+          addIfValid([BILLS[i], BILLS[j], BILLS[k]]);
         }
       }
     }
 
     if (combos.length === 0) {
-      // Total muy alto: caer al redondeo.
+      // Total muy alto: redondeo al siguiente múltiplo de 10 como respaldo.
       let p = Math.ceil(total / 10) * 10;
       if (p <= total) p += 10;
       return { amount: p, bills: [p] };
     }
 
-    // Pesos: penaliza cambio muy grande (pago >> total) y prefieres billetes pequeños.
+    // Pesos: prefiere cambio pequeño y billetes pequeños.
     const weights = combos.map((c) => {
       const sum = c.reduce((a, b) => a + b, 0);
       const over = sum - total;
