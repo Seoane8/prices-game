@@ -444,22 +444,21 @@
     }
   });
 
-  // En móvil, mantener el input visible cuando aparece el teclado.
+  // En móvil, al abrir el teclado, hacer que el primer producto quede visible.
   if (window.visualViewport) {
     const vv = window.visualViewport;
     const onViewport = () => {
-      const el = document.activeElement;
-      if (el === inputEl) {
-        const r = el.getBoundingClientRect();
-        const bottom = r.bottom + 8;
-        if (bottom > vv.height) {
-          window.scrollBy({ top: bottom - vv.height, behavior: "smooth" });
-        }
+      if (document.activeElement !== inputEl) return;
+      const firstItem = orderEl.firstElementChild;
+      if (!firstItem) return;
+      const r = firstItem.getBoundingClientRect();
+      // Si el primer producto empieza por encima del area visible, subir.
+      if (r.top < 8) {
+        window.scrollBy({ top: r.top - 8, behavior: "smooth" });
       }
     };
     vv.addEventListener("resize", onViewport);
-    vv.addEventListener("scroll", onViewport);
-    inputEl.addEventListener("focus", () => setTimeout(onViewport, 100));
+    inputEl.addEventListener("focus", () => setTimeout(onViewport, 150));
   }
 
   renderPriceList();
