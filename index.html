@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f1226" />
+<title>Práctica de sumas de precios</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="card">
+    <h1><span class="emoji">🧾</span> Cuenta mental</h1>
+
+    <section class="start show" id="start">
+      <p class="sub">Practica el cálculo mental de la cuenta de un pedido de bar. Memoriza los precios y elige un modo.</p>
+      <div class="price-list" id="price-list"></div>
+      <div class="modes">
+        <button class="cta" data-mode="total">Sumar total</button>
+        <button class="cta" data-mode="twostep">Total + cambio</button>
+        <button class="cta" data-mode="change">Cambio (mental)</button>
+      </div>
+      <p class="hint">Modo total: escribe la suma. Total + cambio: suma y luego da el cambio. Cambio mental: calcula el cambio sin ver el total.</p>
+    </section>
+
+    <section class="game" id="game">
+      <p class="sub" id="game-sub">Suma los precios de cada pedido lo más rápido que puedas.</p>
+
+      <div class="timer">
+        <span><span class="mode-badge" id="mode-badge">—</span>Pedido <span id="round">1</span></span>
+        <span class="t" id="time">0.00s</span>
+      </div>
+
+      <div class="order" id="order"></div>
+
+      <div class="payment" id="payment"></div>
+
+      <div class="answer">
+        <input id="input" type="text" inputmode="decimal" placeholder="Total (€)" autocomplete="off" />
+        <button id="check">Comprobar</button>
+      </div>
+
+      <div class="result" id="result"></div>
+
+      <div class="actions">
+        <button id="new" class="primary" title="Generar otro pedido">↻ Nueva ronda</button>
+        <button id="reset" class="danger" title="Borrar aciertos y mejor tiempo">↺ Reiniciar</button>
+        <button id="home" class="home" title="Volver a la pantalla de inicio">🏠 Inicio</button>
+      </div>
+
+      <div class="stats" id="stats"></div>
+      <p class="hint">Acepta punto o coma decimal. Enter para comprobar o nueva ronda. Esc para volver al inicio.</p>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
