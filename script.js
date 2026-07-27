@@ -76,9 +76,8 @@
     const addIfValid = (combo) => {
       const sum = combo.reduce((a, b) => a + b, 0);
       if (sum <= total) return;
-      const change = round2(sum - total);
-      const maxBill = Math.max.apply(null, combo);
-      if (change >= maxBill) return; // cambio >= billete mayor => sin sentido
+      const minBill = Math.min.apply(null, combo);
+      if (sum - minBill > total) return; // el billete pequeño sobraría => sin sentido
       combos.push(combo);
     };
 
