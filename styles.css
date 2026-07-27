@@ -49,7 +49,7 @@ p.sub { margin: 0 0 16px; color: var(--muted); font-size: .9rem; line-height: 1.
   display: grid;
   gap: 6px;
   margin-bottom: 16px;
-  max-height: 42vh;
+  max-height: 45dvh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-right: 2px;
