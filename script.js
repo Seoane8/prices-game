@@ -398,6 +398,24 @@
     }
   });
 
+  // En móvil, mantener el input visible cuando aparece el teclado.
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const onViewport = () => {
+      const el = document.activeElement;
+      if (el === inputEl) {
+        const r = el.getBoundingClientRect();
+        const bottom = r.bottom + 8;
+        if (bottom > vv.height) {
+          window.scrollBy({ top: bottom - vv.height, behavior: "smooth" });
+        }
+      }
+    };
+    vv.addEventListener("resize", onViewport);
+    vv.addEventListener("scroll", onViewport);
+    inputEl.addEventListener("focus", () => setTimeout(onViewport, 100));
+  }
+
   renderPriceList();
   showStart();
 })();

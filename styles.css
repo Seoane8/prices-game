@@ -47,8 +47,12 @@ p.sub { margin: 0 0 16px; color: var(--muted); font-size: .9rem; line-height: 1.
 /* ---- Pedido ---- */
 .order {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 16px;
+  max-height: 42vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
 }
 .item {
   display: flex;
@@ -246,7 +250,7 @@ p.sub { margin: 0 0 16px; color: var(--muted); font-size: .9rem; line-height: 1.
   h1 .emoji { font-size: 1.6rem; }
   p.sub { margin-bottom: 18px; font-size: .92rem; }
 
-  .order { gap: 8px; margin-bottom: 18px; }
+  .order { gap: 8px; margin-bottom: 18px; max-height: none; overflow: visible; }
   .item { padding: 12px 14px; }
   .item .name { font-size: 1.05rem; }
 
