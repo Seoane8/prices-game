@@ -76,22 +76,24 @@
   ];
 
   // Genera un pago realista: combinación de denominaciones (1-4 piezas),
-  // suma > total, cada pieza necesaria (quitar la menor deja suma <= total).
-  // Pondera cambio pequeño y uso de billetes grandes.
+  // suma > total, cada pieza necesaria (quitar la menor deja suma <= total),
+  // y cambio no excesivo (<= max(2.5, total*0.18)).
   function genPayment(total) {
     const combos = [];
     const values = DENOMS.map((d) => d.value);
     const MAX_PIECES = 4;
+    const MAX_OVER = Math.max(2.5, total * 0.18);
 
     function addIfValid(combo) {
       const sum = round2(combo.reduce((a, b) => a + b, 0));
       if (sum <= total) return;
+      const over = round2(sum - total);
+      if (over > MAX_OVER) return; // cambio excesivo: descartar
       const minV = Math.min.apply(null, combo);
-      if (round2(sum - minV) > total) return; // la pieza menorsobraría
+      if (round2(sum - minV) > total) return; // la pieza menor sobraría
       combos.push(combo.slice().sort((a, b) => b - a));
     }
 
-    // Backtracking con repeticiones.
     function build(start, combo, sum) {
       if (sum > total) { addIfValid(combo); return; }
       if (combo.length >= MAX_PIECES) return;
@@ -102,12 +104,6 @@
       }
     }
 
-    values.forEach((v) => addIfValid([v]));
-    for (let i = 0; i < values.length; i++) {
-      for (let j = i; j < values.length; j++) {
-        addIfValid([values[i], values[j]]);
-      }
-    }
     build(0, [], 0);
 
     if (combos.length === 0) {
@@ -116,15 +112,19 @@
       return { amount: p, bills: [p], labels: [p + " €"] };
     }
 
-    // Ponderar: cambio razonable (no más de 1.5x el total), preferir billetes grandes.
+    // Ponderar: cambio pequeño, pocas piezas, y algún billete grande.
     const weights = combos.map((c) => {
       const sum = round2(c.reduce((a, b) => a + b, 0));
       const over = round2(sum - total);
-      const numPieces = c.length;
-      const hasLargeBill = c.some((x) => x >= 20);
-      const wOver = over <= 5 ? 1 : (over <= 15 ? 0.5 : 0.2);
-      const wPieces = numPieces === 1 ? 1.2 : (numPieces === 2 ? 1 : 0.7);
-      const wLarge = hasLargeBill ? 1.3 : 1;
+      const n = c.length;
+      const hasLarge = c.some((x) => x >= 20);
+      const has50 = c.some((x) => x >= 50);
+      // Penalizar cambio exponencialmente
+      const wOver = Math.exp(-over * 0.4);
+      // Pocas piezas mejor
+      const wPieces = n === 1 ? 3 : n === 2 ? 2.2 : n === 3 ? 0.7 : 0.2;
+      // Billetes grandes preferidos
+      const wLarge = has50 ? 1.5 : hasLarge ? 1.3 : 1;
       return wOver * wPieces * wLarge;
     });
 
