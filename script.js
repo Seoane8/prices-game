@@ -67,24 +67,62 @@
   // Billetes habituales en un evento. Pago siempre > total para que haya cambio.
   const BILLS = [5, 10, 20, 50];
 
+  // Genera un pago como combinación de 1 a 3 billetes (suma > total).
+  // Prefiere combinaciones cercanas al total (poco cambio) ybilletes pequeños.
   function genPayment(total) {
-    const candidates = BILLS.filter((b) => b > total);
-    if (candidates.length > 0) {
-      // Peso mayor al billete más pequeño.
-      const weights = candidates.map((_, i) =>
-        i === 0 ? 0.7 : 0.3 / (candidates.length - 1)
-      );
-      let r = Math.random();
-      for (let i = 0; i < candidates.length; i++) {
-        r -= weights[i];
-        if (r <= 0) return candidates[i];
+    const combos = [];
+
+    // 1 billete
+    BILLS.forEach((b) => { if (b > total) combos.push([b]); });
+
+    // 2 billetes
+    for (let i = 0; i < BILLS.length; i++) {
+      for (let j = i; j < BILLS.length; j++) {
+        const s = BILLS[i] + BILLS[j];
+        if (s > total) combos.push([BILLS[i], BILLS[j]]);
       }
-      return candidates[0];
     }
-    // Total >= 50: redondear hacia arriba al siguiente múltiplo de 10 que sea > total.
-    let p = Math.ceil(total / 10) * 10;
-    if (p <= total) p += 10;
-    return p;
+
+    // 3 billetes (solo combinaciones comunes: 10+10+5, 20+10+5, 20+20+10 ...)
+    for (let i = 0; i < BILLS.length; i++) {
+      for (let j = i; j < BILLS.length; j++) {
+        for (let k = j; k < BILLS.length; k++) {
+          const combo = [BILLS[i], BILLS[j], BILLS[k]];
+          const s = combo.reduce((a, b) => a + b, 0);
+          if (s > total && s <= total + 60) combos.push(combo);
+        }
+      }
+    }
+
+    if (combos.length === 0) {
+      // Total muy alto: caer al redondeo.
+      let p = Math.ceil(total / 10) * 10;
+      if (p <= total) p += 10;
+      return { amount: p, bills: [p] };
+    }
+
+    // Pesos: penaliza cambio muy grande (pago >> total) y prefieres billetes pequeños.
+    const weights = combos.map((c) => {
+      const sum = c.reduce((a, b) => a + b, 0);
+      const over = sum - total;
+      const billSize = c.reduce((a, b) => a + b, 0) / c.length;
+      return 1 / (1 + over * 0.15 + billSize * 0.05);
+    });
+    const totalW = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * totalW;
+    for (let i = 0; i < combos.length; i++) {
+      r -= weights[i];
+      if (r <= 0) {
+        const amount = combos[i].reduce((a, b) => a + b, 0);
+        return { amount, bills: combos[i] };
+      }
+    }
+    const c = combos[0];
+    return { amount: c.reduce((a, b) => a + b, 0), bills: c };
+  }
+
+  function billsLabel(bills) {
+    return bills.map((b) => b + " €").join(" + ");
   }
 
   let round = 1;
@@ -227,7 +265,8 @@
       paymentEl.classList.add("show");
       paymentEl.innerHTML =
         '<span class="label">El cliente paga con</span>' +
-        '<span class="amt">' + fmt(payment) + ' €</span>';
+        '<span class="amt">' + fmt(payment.amount) + ' €</span>' +
+        '<span class="label" style="margin-top:4px">(' + billsLabel(payment.bills) + ')</span>';
       inputEl.placeholder = "Cambio (€)";
     } else {
       paymentEl.classList.remove("show");
@@ -288,7 +327,7 @@
     resultEl.innerHTML =
       '<div class="row"><span>Total: ' + (step1Ok ? "¡Correcto!" : "Incorrecto") + '</span>' +
       '<span>Tú: ' + fmt(guess) + ' € | Real: ' + fmt(total) + ' €</span></div>' +
-      '<div class="row"><span>Ahora calcula el cambio</span><span>Cliente paga: ' + fmt(payment) + ' €</span></div>';
+      '<div class="row"><span>Ahora calcula el cambio</span><span>Cliente paga: ' + fmt(payment.amount) + ' € (' + billsLabel(payment.bills) + ')</span></div>';
 
     // Transición al paso 2.
     step = 2;
@@ -297,7 +336,8 @@
     paymentEl.classList.add("show");
     paymentEl.innerHTML =
       '<span class="label">El cliente paga con</span>' +
-      '<span class="amt">' + fmt(payment) + ' €</span> · <span class="label" style="display:inline">Total: ' + fmt(total) + ' €</span>';
+      '<span class="amt">' + fmt(payment.amount) + ' €</span>' +
+      '<span class="label" style="margin-top:4px">(' + billsLabel(payment.bills) + ') · Total: ' + fmt(total) + ' €</span>';
     inputEl.focus();
     // El cronómetro sigue corriendo.
   }
@@ -311,7 +351,7 @@
     inputEl.disabled = true;
     checkBtn.disabled = true;
 
-    const change = round2(payment - total);
+    const change = round2(payment.amount - total);
     const changeOk = Math.abs(guess - change) < 0.01;
     const ok = mode === "twostep" ? (changeOk && step1Ok) : changeOk;
     recordRound(ok, elapsed);
@@ -326,7 +366,7 @@
       header +
       '<div class="row"><span>Cambio</span><span>Tú: ' + fmt(guess) + ' € | Real: ' + fmt(change) + ' €</span></div>' +
       '<div class="row"><span>Total</span><span>' + fmt(total) + ' €</span></div>' +
-      '<div class="row"><span>Pago</span><span>' + fmt(payment) + ' €</span></div>' +
+      '<div class="row"><span>Pago</span><span>' + fmt(payment.amount) + ' € (' + billsLabel(payment.bills) + ')</span></div>' +
       statsRows(elapsed);
     round++;
     renderStats();
