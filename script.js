@@ -64,71 +64,98 @@
     return entries[entries.length - 1][0];
   }
 
-  // Billetes habituales en un evento. Pago siempre > total para que haya cambio.
-  const BILLS = [5, 10, 20, 50];
+  // Billetes y monedas habituales en un evento.
+  const DENOMS = [
+    { value: 50, label: "50 €" },
+    { value: 20, label: "20 €" },
+    { value: 10, label: "10 €" },
+    { value: 5, label: "5 €" },
+    { value: 2, label: "2 €" },
+    { value: 1, label: "1 €" },
+    { value: 0.5, label: "0,50 €" },
+  ];
 
-  // Genera un pago como combinación de 1 a 3 billetes (suma > total).
-  // Regla de sentido: el cambio nunca supera el billete mayor del combo
-  // (si lo superara, ese billete sobraría y no se usaría para pagar).
+  // Genera un pago realista: combinación de denominaciones (1-4 piezas),
+  // suma > total, cada pieza necesaria (quitar la menor deja suma <= total).
+  // Pondera cambio pequeño y uso de billetes grandes.
   function genPayment(total) {
     const combos = [];
+    const values = DENOMS.map((d) => d.value);
+    const MAX_PIECES = 4;
 
-    const addIfValid = (combo) => {
-      const sum = combo.reduce((a, b) => a + b, 0);
+    function addIfValid(combo) {
+      const sum = round2(combo.reduce((a, b) => a + b, 0));
       if (sum <= total) return;
-      const minBill = Math.min.apply(null, combo);
-      if (sum - minBill > total) return; // el billete pequeño sobraría => sin sentido
-      combos.push(combo);
-    };
+      const minV = Math.min.apply(null, combo);
+      if (round2(sum - minV) > total) return; // la pieza menorsobraría
+      combos.push(combo.slice().sort((a, b) => b - a));
+    }
 
-    // 1 billete
-    BILLS.forEach((b) => addIfValid([b]));
-
-    // 2 billetes
-    for (let i = 0; i < BILLS.length; i++) {
-      for (let j = i; j < BILLS.length; j++) {
-        addIfValid([BILLS[i], BILLS[j]]);
+    // Backtracking con repeticiones.
+    function build(start, combo, sum) {
+      if (sum > total) { addIfValid(combo); return; }
+      if (combo.length >= MAX_PIECES) return;
+      for (let i = start; i < values.length; i++) {
+        combo.push(values[i]);
+        build(i, combo, round2(sum + values[i]));
+        combo.pop();
       }
     }
 
-    // 3 billetes (combinaciones comunes: 5+10+10, 10+10+20, 10+20+20 ...)
-    for (let i = 0; i < BILLS.length; i++) {
-      for (let j = i; j < BILLS.length; j++) {
-        for (let k = j; k < BILLS.length; k++) {
-          addIfValid([BILLS[i], BILLS[j], BILLS[k]]);
-        }
+    values.forEach((v) => addIfValid([v]));
+    for (let i = 0; i < values.length; i++) {
+      for (let j = i; j < values.length; j++) {
+        addIfValid([values[i], values[j]]);
       }
     }
+    build(0, [], 0);
 
     if (combos.length === 0) {
-      // Total muy alto: redondeo al siguiente múltiplo de 10 como respaldo.
       let p = Math.ceil(total / 10) * 10;
       if (p <= total) p += 10;
-      return { amount: p, bills: [p] };
+      return { amount: p, bills: [p], labels: [p + " €"] };
     }
 
-    // Pesos: prefiere cambio pequeño y billetes pequeños.
+    // Ponderar: cambio razonable (no más de 1.5x el total), preferir billetes grandes.
     const weights = combos.map((c) => {
-      const sum = c.reduce((a, b) => a + b, 0);
-      const over = sum - total;
-      const billSize = c.reduce((a, b) => a + b, 0) / c.length;
-      return 1 / (1 + over * 0.15 + billSize * 0.05);
+      const sum = round2(c.reduce((a, b) => a + b, 0));
+      const over = round2(sum - total);
+      const numPieces = c.length;
+      const hasLargeBill = c.some((x) => x >= 20);
+      const wOver = over <= 5 ? 1 : (over <= 15 ? 0.5 : 0.2);
+      const wPieces = numPieces === 1 ? 1.2 : (numPieces === 2 ? 1 : 0.7);
+      const wLarge = hasLargeBill ? 1.3 : 1;
+      return wOver * wPieces * wLarge;
     });
+
     const totalW = weights.reduce((a, b) => a + b, 0);
     let r = Math.random() * totalW;
     for (let i = 0; i < combos.length; i++) {
       r -= weights[i];
       if (r <= 0) {
-        const amount = combos[i].reduce((a, b) => a + b, 0);
-        return { amount, bills: combos[i] };
+        const bills = combos[i];
+        const sum = round2(bills.reduce((a, b) => a + b, 0));
+        const labels = bills.map((v) => {
+          const d = DENOMS.find((x) => x.value === v);
+          return d ? d.label : v + " €";
+        });
+        return { amount: sum, bills, labels };
       }
     }
     const c = combos[0];
-    return { amount: c.reduce((a, b) => a + b, 0), bills: c };
+    const sum = round2(c.reduce((a, b) => a + b, 0));
+    return {
+      amount: sum,
+      bills: c,
+      labels: c.map((v) => {
+        const d = DENOMS.find((x) => x.value === v);
+        return d ? d.label : v + " €";
+      }),
+    };
   }
 
-  function billsLabel(bills) {
-    return bills.map((b) => b + " €").join(" + ");
+  function billsLabel(labels) {
+    return labels.join(" + ");
   }
 
   let round = 1;
@@ -272,7 +299,7 @@
       paymentEl.innerHTML =
         '<span class="label">El cliente paga con</span>' +
         '<span class="amt">' + fmt(payment.amount) + ' €</span>' +
-        '<span class="label" style="margin-top:4px">(' + billsLabel(payment.bills) + ')</span>';
+        '<span class="label" style="margin-top:4px">(' + billsLabel(payment.labels) + ')</span>';
       inputEl.placeholder = "Cambio (€)";
     } else {
       paymentEl.classList.remove("show");
@@ -333,7 +360,7 @@
     resultEl.innerHTML =
       '<div class="row"><span>Total: ' + (step1Ok ? "¡Correcto!" : "Incorrecto") + '</span>' +
       '<span>Tú: ' + fmt(guess) + ' € | Real: ' + fmt(total) + ' €</span></div>' +
-      '<div class="row"><span>Ahora calcula el cambio</span><span>Cliente paga: ' + fmt(payment.amount) + ' € (' + billsLabel(payment.bills) + ')</span></div>';
+      '<div class="row"><span>Ahora calcula el cambio</span><span>Cliente paga: ' + fmt(payment.amount) + ' € (' + billsLabel(payment.labels) + ')</span></div>';
 
     // Transición al paso 2.
     step = 2;
@@ -343,7 +370,7 @@
     paymentEl.innerHTML =
       '<span class="label">El cliente paga con</span>' +
       '<span class="amt">' + fmt(payment.amount) + ' €</span>' +
-      '<span class="label" style="margin-top:4px">(' + billsLabel(payment.bills) + ') · Total: ' + fmt(total) + ' €</span>';
+      '<span class="label" style="margin-top:4px">(' + billsLabel(payment.labels) + ') · Total: ' + fmt(total) + ' €</span>';
     inputEl.focus();
     // El cronómetro sigue corriendo.
   }
@@ -372,7 +399,7 @@
       header +
       '<div class="row"><span>Cambio</span><span>Tú: ' + fmt(guess) + ' € | Real: ' + fmt(change) + ' €</span></div>' +
       '<div class="row"><span>Total</span><span>' + fmt(total) + ' €</span></div>' +
-      '<div class="row"><span>Pago</span><span>' + fmt(payment.amount) + ' € (' + billsLabel(payment.bills) + ')</span></div>' +
+      '<div class="row"><span>Pago</span><span>' + fmt(payment.amount) + ' € (' + billsLabel(payment.labels) + ')</span></div>' +
       statsRows(elapsed);
     round++;
     renderStats();
