@@ -92,16 +92,13 @@
   }
 
   // Genera un pago realista: el cliente saca un subconjunto de su cartera
-  // que cubra el total con cambio no excesivo, cada pieza necesaria.
+  // que cubra el total, cada pieza necesaria (quitar la menor deja suma <= total).
   function genPayment(total) {
-    const MAX_OVER = Math.max(2.5, total * 0.18);
     const combos = [];
 
     function addIfValid(combo) {
       const sum = round2(combo.reduce((a, b) => a + b, 0));
       if (sum <= total) return;
-      const over = round2(sum - total);
-      if (over > MAX_OVER) return;
       const minV = Math.min.apply(null, combo);
       if (round2(sum - minV) > total) return;
       combos.push(combo.slice().sort((a, b) => b - a));
@@ -130,41 +127,14 @@
       return { amount: p, bills: [p], labels: [p + " €"] };
     }
 
-    const weights = combos.map((c) => {
-      const sum = round2(c.reduce((a, b) => a + b, 0));
-      const over = round2(sum - total);
-      const n = c.length;
-      const hasLarge = c.some((x) => x >= 20);
-      const has50 = c.some((x) => x >= 50);
-      const wOver = Math.exp(-over * 0.4);
-      const wPieces = n === 1 ? 3 : n === 2 ? 2.2 : n === 3 ? 0.7 : 0.2;
-      const wLarge = has50 ? 1.5 : hasLarge ? 1.3 : 1;
-      return wOver * wPieces * wLarge;
-    });
-
-    const totalW = weights.reduce((a, b) => a + b, 0);
-    let r = Math.random() * totalW;
-    for (let i = 0; i < combos.length; i++) {
-      r -= weights[i];
-      if (r <= 0) {
-        const bills = combos[i];
-        const sum = round2(bills.reduce((a, b) => a + b, 0));
-        return {
-          amount: sum,
-          bills,
-          labels: bills.map((v) => {
-            const d = DENOMS.find((x) => x.value === v);
-            return d ? d.label : v + " €";
-          }),
-        };
-      }
-    }
-    const c = combos[0];
-    const sum = round2(c.reduce((a, b) => a + b, 0));
+    // Sin sesgo de cambio: todas las combinaciones válidas tienen el mismo peso.
+    const r = Math.floor(Math.random() * combos.length);
+    const bills = combos[r];
+    const sum = round2(bills.reduce((a, b) => a + b, 0));
     return {
       amount: sum,
-      bills: c,
-      labels: c.map((v) => {
+      bills,
+      labels: bills.map((v) => {
         const d = DENOMS.find((x) => x.value === v);
         return d ? d.label : v + " €";
       }),
