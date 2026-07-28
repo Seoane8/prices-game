@@ -127,9 +127,19 @@
       return { amount: p, bills: [p], labels: [p + " €"] };
     }
 
-    // Sin sesgo de cambio: todas las combinaciones válidas tienen el mismo peso.
-    const r = Math.floor(Math.random() * combos.length);
-    const bills = combos[r];
+    // Ponderar hacia combos cercanos al total (poco cambio) para que las
+    // monedas pequeñas puedan aparecer; los lejanos siguen siendo posibles.
+    const weights = combos.map((c) => {
+      const over = round2(c.reduce((a, b) => a + b, 0) - total);
+      return Math.exp(-over * 0.18);
+    });
+    const totalW = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * totalW;
+    let bills = combos[0];
+    for (let i = 0; i < combos.length; i++) {
+      r -= weights[i];
+      if (r <= 0) { bills = combos[i]; break; }
+    }
     const sum = round2(bills.reduce((a, b) => a + b, 0));
     return {
       amount: sum,
