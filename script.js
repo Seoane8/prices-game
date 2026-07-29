@@ -7,6 +7,7 @@
     { name: "Refresco", price: 2.50 },
     { name: "Cubata", price: 5.00 },
     { name: "Vermú", price: 3.00 },
+    { name: "Vino", price: 3.00 },
     { name: "Agua", price: 1.00 },
   ];
 
